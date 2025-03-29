@@ -1,8 +1,10 @@
-// By VishwaGauravIn (https://itsvg.in)
-
-const GenAI = require("@google/generative-ai");
 const { TwitterApi } = require("twitter-api-v2");
 const SECRETS = require("./SECRETS");
+const Groq = require("groq-sdk");
+
+const groq = new Groq({
+  apiKey: SECRETS.GROQ_API_KEY
+});
 
 const twitterClient = new TwitterApi({
   appKey: SECRETS.APP_KEY,
@@ -11,30 +13,33 @@ const twitterClient = new TwitterApi({
   accessSecret: SECRETS.ACCESS_SECRET,
 });
 
-const generationConfig = {
-  maxOutputTokens: 400,
-};
-const genAI = new GenAI.GoogleGenerativeAI(SECRETS.GEMINI_API_KEY);
+async function generatePickOneQuestion() {
+  const prompt = `Generate a fun "pick one" question for Twitter engagement. Examples:
+  - "iPhone or Android? Choose one!"
+  - "Beach or mountains? Which is better?"
+  - "Coffee or tea? You decide!"
+  
+  Make it short (under 280 chars), engaging, and add emojis if relevant.`;
 
-async function run() {
-  // For text-only input, use the gemini-pro model
-  const model = genAI.getGenerativeModel({
-    model: "gemini-pro",
-    generationConfig,
+  const completion = await groq.chat.completions.create({
+    model: "llama3-70b-8192",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.7,
+    max_tokens: 100,
   });
 
-  // Write your prompt here
-  const prompt =
-    "generate a web development content, tips and tricks or something new or some rant or some advice as a tweet, it should not be vague and should be unique; under 280 characters and should be plain text, you can use emojis";
-
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
-  console.log(text);
-  sendTweet(text);
+  return completion.choices[0]?.message?.content || "Pizza or burgers? Decide now! 🍕🍔";
 }
 
-run();
+async function run() {
+  try {
+    const tweetText = await generatePickOneQuestion();
+    console.log("Generated tweet:", tweetText);
+    await sendTweet(tweetText);
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
 
 async function sendTweet(tweetText) {
   try {
@@ -44,3 +49,5 @@ async function sendTweet(tweetText) {
     console.error("Error sending tweet:", error);
   }
 }
+
+run();
